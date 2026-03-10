@@ -8,7 +8,9 @@ const { ADMIN_KEY } = process.env;
 
 if (!ADMIN_KEY) throw new Error("auth: Admin key missing. Please add one");
 if (ADMIN_KEY.length < 12)
-  throw new Error("auth: Admin key too short. Please use one that's at least 12 characters");
+  throw new Error(
+    "auth: Admin key too short. Please use one that's at least 12 characters",
+  );
 
 export const auth = new Elysia({
   prefix: "/auth",
@@ -16,7 +18,7 @@ export const auth = new Elysia({
   .use(
     rateLimit({
       duration: 30_000,
-      max: 200, // this is intentionally permissive 
+      max: 200, // this is intentionally permissive
       scoping: "scoped",
       generator: ratelimitGenerator,
     }),
@@ -66,9 +68,11 @@ export const authBeforeHandle = async ({ set, headers }) => {
       return { success: false, error: "Unauthorized. Invalid bot token." };
     }
 
-    const apiKey = await db`SELECT * FROM api_keys WHERE id = ${id}`.then((rows) => rows[0]);
-
-    if (!apiKey || !apiKey.tokenHash) {
+    const apiKey = await db`SELECT * FROM api_keys WHERE id = ${id}`.then(
+      (rows) => rows[0],
+    );
+    const tokenHash = apiKey?.tokenHash || apiKey?.tokenhash;
+    if (!apiKey || !tokenHash) {
       set.status = 401;
       return {
         success: false,
@@ -76,7 +80,7 @@ export const authBeforeHandle = async ({ set, headers }) => {
       };
     }
 
-    if (!(await Bun.password.verify(token, apiKey.tokenHash))) {
+    if (!(await Bun.password.verify(token, tokenHash))) {
       set.status = 401;
       return { success: false, error: "Unauthorized. Invalid bot token." };
     }
@@ -88,11 +92,14 @@ export const authBeforeHandle = async ({ set, headers }) => {
     set.status = 401;
     return {
       success: false,
-      error: "Unauthorized. An API key or session token is required to use this endpoint.",
+      error:
+        "Unauthorized. An API key or session token is required to use this endpoint.",
     };
   }
 
-  const { token, hash } = JSON.parse(atob(authorization.replace("Bearer ", "").trim()));
+  const { token, hash } = JSON.parse(
+    atob(authorization.replace("Bearer ", "").trim()),
+  );
 
   const [validToken] = await db`
     SELECT * FROM sessions WHERE token = ${hash} AND expires > ${Date.now()} LIMIT 1

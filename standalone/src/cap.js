@@ -1,4 +1,9 @@
-import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHmac,
+  randomBytes,
+} from "node:crypto";
 import { cors } from "@elysiajs/cors";
 import { Elysia } from "elysia";
 import { rateLimit } from "elysia-rate-limit";
@@ -15,7 +20,10 @@ const CHALLENGE_TTL_MS = 15 * 60 * 1000; // 15min
 const TOKEN_TTL_MS = 2 * 60 * 60 * 1000; // 2h
 
 const b64url = (buf) =>
-  (buf instanceof Uint8Array ? Buffer.from(buf) : Buffer.from(buf, "utf8")).toString("base64url");
+  (buf instanceof Uint8Array
+    ? Buffer.from(buf)
+    : Buffer.from(buf, "utf8")
+  ).toString("base64url");
 
 const b64urlDecode = (str) => Buffer.from(str, "base64url");
 
@@ -82,7 +90,10 @@ function decrypt(blob, jwtSecret) {
     const key = deriveEncKey(jwtSecret);
     const decipher = createDecipheriv("aes-256-gcm", key, iv);
     decipher.setAuthTag(tag);
-    const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    const decrypted = Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final(),
+    ]);
     return JSON.parse(decrypted.toString("utf8"));
   } catch {
     return null;
@@ -94,7 +105,8 @@ function prng(seed, length) {
     let hash = 2166136261;
     for (let i = 0; i < str.length; i++) {
       hash ^= str.charCodeAt(i);
-      hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+      hash +=
+        (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
     }
     return hash >>> 0;
   }
@@ -142,7 +154,8 @@ export const capServer = new Elysia({
   )
 
   .post("/:siteKey/challenge", async ({ set, params }) => {
-    const [keyRow] = await db`SELECT config, jwtSecret FROM keys WHERE siteKey = ${params.siteKey}`;
+    const [keyRow] =
+      await db`SELECT config, jwtSecret FROM keys WHERE siteKey = ${params.siteKey}`;
 
     if (!keyRow) {
       set.status = 404;
@@ -214,7 +227,8 @@ export const capServer = new Elysia({
       return { error: "Missing required fields" };
     }
 
-    const [keyRow] = await db`SELECT jwtSecret FROM keys WHERE siteKey = ${params.siteKey}`;
+    const [keyRow] =
+      await db`SELECT jwtSecret FROM keys WHERE siteKey = ${params.siteKey}`;
 
     if (!keyRow) {
       set.status = 404;
@@ -251,7 +265,8 @@ export const capServer = new Elysia({
       return { error: "Malformed challenge token" };
     }
 
-    const [existing] = await db`SELECT 1 FROM challenge_blocklist WHERE sig = ${sig}`;
+    const [existing] =
+      await db`SELECT 1 FROM challenge_blocklist WHERE sig = ${sig}`;
     if (existing) {
       set.status = 403;
       return { error: "Challenge already redeemed" };
@@ -274,11 +289,16 @@ export const capServer = new Elysia({
     let idx = 0;
     const challenges = Array.from({ length: c }, () => {
       idx++;
-      return [prng(`${prngSeed}${idx}`, size), prng(`${prngSeed}${idx}d`, difficulty)];
+      return [
+        prng(`${prngSeed}${idx}`, size),
+        prng(`${prngSeed}${idx}d`, difficulty),
+      ];
     });
 
     const hashes = await Promise.all(
-      challenges.map(([salt, target], i) => sha256(salt + solutions[i]).then((h) => [h, target])),
+      challenges.map(([salt, target], i) =>
+        sha256(salt + solutions[i]).then((h) => [h, target]),
+      ),
     );
 
     const isValid = hashes.every(([h, target]) => h.startsWith(target));
@@ -329,7 +349,11 @@ export const capServer = new Elysia({
         }
       } else if (body.instr_timeout === true) {
         set.status = 429;
-        return { instr_error: true, error: "Instrumentation timeout", reason: "timeout" };
+        return {
+          instr_error: true,
+          error: "Instrumentation timeout",
+          reason: "timeout",
+        };
       } else {
         set.status = 403;
         return {
@@ -361,7 +385,7 @@ export const capServer = new Elysia({
       INSERT INTO solutions (siteKey, bucket, count)
       VALUES (${params.siteKey}, ${hourlyBucket}, 1)
       ON CONFLICT (siteKey, bucket)
-      DO UPDATE SET count = count + 1
+      DO UPDATE SET count = solutions.count + 1
     `;
 
     return {
